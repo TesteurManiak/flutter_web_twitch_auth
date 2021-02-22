@@ -24,8 +24,8 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  bool _showUserData = false;
   String _token;
+  html.WindowBase _popupWin;
 
   Future<String> _validateToken() async {
     final response = await http.get(
@@ -36,27 +36,37 @@ class _MyHomePageState extends State<MyHomePage> {
         .toString();
   }
 
+  void _login(String data) {
+    // Parse data to extract the token.
+    final items = data.split(RegExp(r'#|&'));
+    for (final e in items) {
+      if (e.startsWith('access_token=')) {
+        setState(() => _token = e.substring('access_token='.length));
+        break;
+      }
+    }
+    if (_popupWin != null) {
+      _popupWin.postMessage('close', '*');
+      _popupWin = null;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
 
-    final currentUrl = Uri.base;
-    if (!currentUrl.fragment.contains('access_token=')) {
-      // You are not connected so redirect to the Twitch authentication page.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        html.window.location.assign(
-          'https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=$clientId&redirect_uri=${currentUrl.origin}&scope=viewing_activity_read',
-        );
-      });
-    } else {
-      // You are connected, you can grab the code from the url.
-      final fragments = currentUrl.fragment.split('&');
-      _token = fragments
-          .firstWhere((e) => e.startsWith('access_token='))
-          .substring('access_token='.length);
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => setState(() => _showUserData = true));
-    }
+    html.window.onMessage.listen((event) {
+      if ((event.data as String).contains('access_token=')) _login(event.data);
+    });
+
+    // You are not connected so redirect to the Twitch authentication page.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final redirectUri = 'http://localhost:8080/static.html';
+      final authUrl =
+          'https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=$clientId&redirect_uri=$redirectUri&scope=viewing_activity_read';
+      _popupWin = html.window.open(
+          authUrl, "Twitch Auth", "width=800, height=900, scrollbars=yes");
+    });
   }
 
   @override
@@ -64,7 +74,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(title: Text('Twitch web login')),
       body: Center(
-        child: _showUserData
+        child: _token != null && _token.isNotEmpty
             ? FutureBuilder<String>(
                 future: _validateToken(),
                 builder: (_, snapshot) {
@@ -72,7 +82,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   return Container(child: Text('Welcome ${snapshot.data}'));
                 },
               )
-            : Container(),
+            : Container(
+                child: Text('You are not connected'),
+              ),
       ),
     );
   }
