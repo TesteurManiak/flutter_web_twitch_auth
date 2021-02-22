@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 
+/// Client id provided by Twitch
 const String clientId = "YOUR_CLIENT_ID";
 
 void main() => runApp(MyApp());
@@ -37,26 +38,42 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _login(String data) {
-    // Parse data to extract the token.
+    /// Parse data to extract the token.
     final receivedUri = Uri.parse(data);
-    setState(() => _token = receivedUri.queryParameters['access_token']);
+
+    /// Close the popup window
     if (_popupWin != null) {
       _popupWin.close();
       _popupWin = null;
     }
+
+    setState(() => _token = receivedUri.fragment
+        .split('&')
+        .firstWhere((e) => e.startsWith('access_token='))
+        .substring('access_token='.length));
   }
 
   @override
   void initState() {
     super.initState();
 
+    /// Listen to message send with `postMessage`.
     html.window.onMessage.listen((event) {
-      if ((event.data as String).contains('access_token=')) _login(event.data);
+      /// The event contains the token which means the user is connected.
+      if (event.data.toString().contains('access_token=')) {
+        _login(event.data);
+      }
     });
 
-    // You are not connected so redirect to the Twitch authentication page.
+    /// You are not connected so open the Twitch authentication page.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final redirectUri = 'http://localhost:8080/static.html';
+      final currentUri = Uri.base;
+      final redirectUri = Uri(
+        host: currentUri.host,
+        scheme: currentUri.scheme,
+        port: currentUri.port,
+        path: '/static.html',
+      );
       final authUrl =
           'https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=$clientId&redirect_uri=$redirectUri&scope=viewing_activity_read';
       _popupWin = html.window.open(
