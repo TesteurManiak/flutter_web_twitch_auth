@@ -38,15 +38,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _login(String data) {
     // Parse data to extract the token.
-    final items = data.split(RegExp(r'#|&'));
-    for (final e in items) {
-      if (e.startsWith('access_token=')) {
-        setState(() => _token = e.substring('access_token='.length));
-        break;
-      }
-    }
+    final receivedUri = Uri.parse(data);
+    setState(() => _token = receivedUri.queryParameters['access_token']);
     if (_popupWin != null) {
-      _popupWin.postMessage('close', '*');
+      _popupWin.close();
       _popupWin = null;
     }
   }
